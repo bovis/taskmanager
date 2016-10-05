@@ -1,62 +1,116 @@
 #file should first seek input from user to create a task
 #I'm not sure I know how to delete line items yet
 #
-#for ch2, include:
-# ** use load to list file contents
-# ** local variables
-# ** create a new object
-# ** send information to a method
-# - use object_id, respond_to?, and send() built-in methods
+#for ch3, include:
+# ** use class to contain list, add, remove
+# ** above can be instance methods
+# - how to include a class method?
+# 	- what would be overarching for tasks?
+# 	- do I still need any object methods?
+# - attr_* for instance variables
+# ** constant may be used for default filename?
+# ** any way to use inheritance?
+#
+#for ch2, carryovers include:
+# - use object_id built-in method
 # - use required, optional, and default-valued arguments
 # - include references from one variable to another, alter them sufficiently
+class Environment
+	require 'date'
 
-operation = Object.new
+	FILEDIR = ENV['HOME']	#or rel to user home
 
-def operation.add
-	filename = "tasklist"
-	if File.stat(filename).writable? != true
-		puts "Permission denied."
-		return
+	TASKFILE = "/tasklist"
+	WRITETASK = FILEDIR + TASKFILE
+
+	USERFILE = "/userinfo"
+	WRITEUSER = FILEDIR + USERFILE
+
+	current_time = DateTime.now
+	DATETIME = current_time.strftime("%Y-%m-%d %H:%M")
+end
+
+class User_attr
+	def initialize
+		attr_accessor :name
+	end
+end
+
+class Operations
+	def add
+		write_check = Permissions.new
+		write_check.new_file? if write_check.can_write?
+
+		print "What is the name and date of the ",
+		"task you want to record?"
+		puts()
+		new_task = gets.chomp + " #{Environment::DATETIME}"
+
+		open(Environment::WRITETASK, "a") do |file|
+			file.puts(new_task)
+		end
+
+		puts "Added '#{new_task}' to file name: #{Environment::WRITETASK}."
 	end
 
-	if File.file?(filename) != true
-		puts "File not found. Creating new."
-		File.new(filename, "w")
-	else
+	def remove
+		puts "Future consideration."
+	end
+
+	def list
+		puts "User: "
+		puts File.read(Environment::WRITEUSER)
+		puts()
+		puts "Your tasks are:"
+		puts File.read(Environment::WRITETASK)
+	end
+
+	def update
+		puts "Enter your name:"
+		name = gets.chomp
+		open(Environment::WRITEUSER, "w") do |file|
+			file.puts(name)
+		end
+		puts "Added '#{name}' to user config in: #{Environment::WRITEUSER}."
+	end
+
+end
+
+class Permissions
+	def can_write?
+		if File.stat(Environment::FILEDIR).writable? != true
+			puts "Permission denied."
+			exit
+		end
+	end
+
+	def new_file?
+		if File.file?(Environment::WRITEPATH) != true
+			puts "File not found. Creating new."
+			File.new(WRITEPATH, "w")
+		else
 		puts "File found."
 		puts()
+		end
 	end
-	
-	print "What is the name and date of the ",
-	"task you want to record?"
-	puts()
-	new_task = gets.chomp
+end
 
-	open(filename, "a") do |file|
-		file.puts(new_task)
+class Entrance
+	def desired_action
+		puts "What would you like to do?",
+			"Options are 'list,' 'add,'",
+			"and 'remove' tasks or 'update' user info."
+
+		action = gets.downcase.chomp
+		new_action = Operations.new
+
+		if new_action.respond_to?(action)
+			new_action.send(action)
+		else
+			puts "That action is not available."
+		end
 	end
-
-	puts "Added '#{new_task}' to file name: #{filename}."
 end
 
-def operation.remove
-	puts "Future consideration."
-end
-
-def operation.list
-	filename = "tasklist"
-	puts()
-	puts "Your tasks are:"
-	puts File.read(filename)
-end
-
-puts "What would you like to do?"
-puts "Options are 'list, 'add', and 'remove'."
-action = gets.downcase.chomp
-
-if operation.respond_to?(action)
-        operation.send(action)
-else
-        puts "That action is not available."
-end
-
+start = Entrance.new
+start.desired_action
