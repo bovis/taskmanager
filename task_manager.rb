@@ -1,56 +1,55 @@
 #file should first seek input from user to create a task
 #I'm not sure I know how to delete line items yet
 #
-#for ch3, include:
-# ** use class to contain list, add, remove
-# ** above can be instance methods
+#for ch4, focus on:
+# - use modules for repetitive information
+# 	that can move between classes
+# - figure out a way to pass a message to a method
+# 	- use method_missing to verify method's existence
+#
+#for ch3, carryovers:
 # - how to include a class method?
 # 	- what would be overarching for tasks?
-# 	- do I still need any object methods?
 # - attr_* for instance variables
-# ** constant may be used for default filename?
-# ** any way to use inheritance?
 #
 #for ch2, carryovers include:
 # - use object_id built-in method
 # - use required, optional, and default-valued arguments
 # - include references from one variable to another, alter them sufficiently
-class Environment
-	require 'date'
 
-	FILEDIR = ENV['HOME']	#or rel to user home
-
-	TASKFILE = "/tasklist"
-	WRITETASK = FILEDIR + TASKFILE
-
-	USERFILE = "/userinfo"
-	WRITEUSER = FILEDIR + USERFILE
-
-	current_time = DateTime.now
-	DATETIME = current_time.strftime("%Y-%m-%d %H:%M")
-end
-
-class User_attr
-	def initialize
-		attr_accessor :name
+class TaskElements
+	def get_taskname
+		puts "Enter the task you want to record."
+		taskname = gets.chomp + " "
+	end
+	def get_currentdate
+		require "date"
+		currentdate = (DateTime.now).strftime("%Y-%m-%d %H:%M")
 	end
 end
 
-class Operations
+class Actionlist
+	attr_reader :tasklist, :userconfig
+	def initialize(filename, userconfig)
+		@filename = filename
+		@userconfig = userconfig
+	end
+
 	def add
-		write_check = Permissions.new
+		write_check = Permissions.new("./tasklist", "./userconfig")
 		write_check.new_file? if write_check.can_write?
 
-		print "What is the name and date of the ",
-		"task you want to record?"
-		puts()
-		new_task = gets.chomp + " #{Environment::DATETIME}"
+		new_task = TaskElements.new
+		to_add = new_task.get_taskname + new_task.get_currentdate
 
-		open(Environment::WRITETASK, "a") do |file|
-			file.puts(new_task)
+		open(@filename, "a") do |file|
+			file.puts(to_add)
 		end
 
-		puts "Added '#{new_task}' to file name: #{Environment::WRITETASK}."
+		puts "Added '#{to_add}' to file name: #{@filename}."
+		puts
+		another_round = UserInterface.new
+		another_round.run
 	end
 
 	def remove
@@ -59,35 +58,49 @@ class Operations
 
 	def list
 		puts "User: "
-		puts File.read(Environment::WRITEUSER)
+		puts File.read(@userconfig)
 		puts()
 		puts "Your tasks are:"
-		puts File.read(Environment::WRITETASK)
+		puts File.read(@filename)
+		puts()
+
+		another_round = UserInterface.new
+		another_round.run
 	end
 
 	def update
 		puts "Enter your name:"
 		name = gets.chomp
-		open(Environment::WRITEUSER, "w") do |file|
+		open(@userconfig, "w") do |file|
 			file.puts(name)
 		end
-		puts "Added '#{name}' to user config in: #{Environment::WRITEUSER}."
+		puts "Added '#{name}' to user config in: #{@userconfig}."
+		puts
+		another_round = UserInterface.new
+		another_round.run
 	end
-
 end
 
 class Permissions
+        attr_reader :filename, :userconfig, :path
+	
+	def initialize(filename, userconfig)
+		@path = ENV['HOME']
+                @filename = filename
+                @userconfig = userconfig
+        end
+
 	def can_write?
-		if File.stat(Environment::FILEDIR).writable? != true
+		if File.stat(@path).writable? != true
 			puts "Permission denied."
 			exit
 		end
 	end
 
 	def new_file?
-		if File.file?(Environment::WRITEPATH) != true
+		if File.file?(@filename) != true
 			puts "File not found. Creating new."
-			File.new(WRITEPATH, "w")
+			File.new(@filename, "w")
 		else
 		puts "File found."
 		puts()
@@ -95,22 +108,26 @@ class Permissions
 	end
 end
 
-class Entrance
-	def desired_action
+class UserInterface
+	def run
 		puts "What would you like to do?",
 			"Options are 'list,' 'add,'",
-			"and 'remove' tasks or 'update' user info."
+			"and 'remove' tasks, 'update' user info, and 'exit' program."
 
-		action = gets.downcase.chomp
-		new_action = Operations.new
+		request = gets.downcase.chomp
+		new_action = Actionlist.new("./tasklist", "./userconfig")
 
-		if new_action.respond_to?(action)
-			new_action.send(action)
+		if new_action.respond_to?(request)
+			if request != "exit"
+				new_action.send(request)
+			else
+				exit
+			end
 		else
 			puts "That action is not available."
 		end
 	end
 end
 
-start = Entrance.new
-start.desired_action
+start = UserInterface.new
+start.run
