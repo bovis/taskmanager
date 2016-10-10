@@ -17,39 +17,56 @@
 # - use required, optional, and default-valued arguments
 # - include references from one variable to another, alter them sufficiently
 
-class TaskElements
-	def get_taskname
-		puts "Enter the task you want to record."
-		taskname = gets.chomp + " "
-	end
-	def get_currentdate
-		require "date"
-		currentdate = (DateTime.now).strftime("%Y-%m-%d %H:%M")
+require "date"
+
+class User
+	attr_reader :username
+
+	def grab_username
+		puts
+		puts "What is your username?"
+		@username = gets.chomp
 	end
 end
 
-class Actionlist
+class Task
+	attr_reader :taskname
+
+	def initialize
+		@datetime = DateTime.now.strftime("%Y-%m-%d %H:%M")
+	end
+	
+	def grab_taskname
+		puts
+		puts "What task would you like to enter?"
+		@taskname = gets.chomp
+	end
+
+	def create_string
+		"#{grab_taskname} #{@datetime}"
+	end
+end
+
+class ActionList
 	attr_reader :tasklist, :userconfig
 	def initialize(filename, userconfig)
+		#@path = "/etc"
+		@path = ENV['HOME']
 		@filename = filename
 		@userconfig = userconfig
 	end
 
 	def add
-		write_check = Permissions.new("./tasklist", "./userconfig")
-		write_check.new_file? if write_check.can_write?
-
-		new_task = TaskElements.new
-		to_add = new_task.get_taskname + new_task.get_currentdate
-
-		open(@filename, "a") do |file|
-			file.puts(to_add)
+		raise ArgumentError.new("No permission to write to #{@path}.") unless can_write?
+		
+		new_task = Task.new
+		#loop done on suggestion; investigate further implications
+		#makes addition simpler; "a" creates new file when missing
+		File.open((@path + @filename), "a") do |file|
+			file.puts(new_task.create_string)
 		end
 
-		puts "Added '#{to_add}' to file name: #{@filename}."
-		puts
-		another_round = UserInterface.new
-		another_round.run
+		puts "Added new task, #{new_task.taskname} to file name: #{@filename}."
 	end
 
 	def remove
@@ -63,68 +80,46 @@ class Actionlist
 		puts "Your tasks are:"
 		puts File.read(@filename)
 		puts()
-
-		another_round = UserInterface.new
-		another_round.run
 	end
 
-	def update
-		puts "Enter your name:"
-		name = gets.chomp
+	def exit
+		abort	
+	end
+
+	def update #for now, single line, overwrites previous
+		new_user = User.new
 		open(@userconfig, "w") do |file|
-			file.puts(name)
+			file.puts(new_user.grab_username)
 		end
-		puts "Added '#{name}' to user config in: #{@userconfig}."
-		puts
-		another_round = UserInterface.new
-		another_round.run
+		puts "Added '#{new_user.username}' to user config in: #{@userconfig}."
 	end
-end
-
-class Permissions
-        attr_reader :filename, :userconfig, :path
 	
-	def initialize(filename, userconfig)
-		@path = ENV['HOME']
-                @filename = filename
-                @userconfig = userconfig
-        end
+	private
 
 	def can_write?
-		if File.stat(@path).writable? != true
-			puts "Permission denied."
-			exit
-		end
-	end
-
-	def new_file?
-		if File.file?(@filename) != true
-			puts "File not found. Creating new."
-			File.new(@filename, "w")
-		else
-		puts "File found."
-		puts()
-		end
+		File.stat(@path).writable?
 	end
 end
 
 class UserInterface
 	def run
-		puts "What would you like to do?",
-			"Options are 'list,' 'add,'",
-			"and 'remove' tasks, 'update' user info, and 'exit' program."
+		@request = ""
+		while @request != "exit"
+			puts
+			puts "What would you like to do? Options are:"
+			puts "1. 'list,' 'add,' or 'remove' a task"
+			puts "2. 'update' user info"
+			puts "3. 'exit' program."
 
-		request = gets.downcase.chomp
-		new_action = Actionlist.new("./tasklist", "./userconfig")
+			@request = gets.downcase.chomp
+			new_action = ActionList.new("/tasklist", "./userconfig")
 
-		if new_action.respond_to?(request)
-			if request != "exit"
-				new_action.send(request)
+			if new_action.respond_to?(@request)
+					new_action.send(@request)
 			else
-				exit
+				puts
+				puts "ERROR: That action is not available."
 			end
-		else
-			puts "That action is not available."
 		end
 	end
 end
