@@ -18,6 +18,7 @@
 # - include references from one variable to another, alter them sufficiently
 
 require "date"
+require_relative "stacklike"
 
 class User
 	attr_reader :username
@@ -48,9 +49,10 @@ class Task
 end
 
 class ActionList
+	include Stacklike
+
 	attr_reader :tasklist, :userconfig
 	def initialize(filename, userconfig)
-		#@path = "/etc"
 		@path = ENV['HOME']
 		@filename = filename
 		@userconfig = userconfig
@@ -66,27 +68,47 @@ class ActionList
 			file.puts(new_task.create_string)
 		end
 
-		puts "Added new task, #{new_task.taskname} to file name: #{@filename}."
+		puts "Added new task, '#{new_task.taskname}'."
 	end
 
 	def remove
 		puts "Future consideration."
+=begin
+		IO.foreach(@path + @filename) do |line|
+			puts "Line is #{line}"
+			add_to_stack(line)
+		end
+		remove_from_stack
+=end
 	end
 
 	def list
-		puts "User: "
-		puts File.read(@userconfig)
-		puts()
-		puts "Your tasks are:"
-		puts File.read(@filename)
-		puts()
+		if File.exist?(@path + @filename)
+			#read should be safe for reading single line
+			puts "User: "
+			puts File.read(@userconfig)
+			puts()
+			#foreach better for larger files
+			#overkill for testing here, but good practice
+			#	to learn
+			count = 1
+			puts "Your tasks are:"
+			IO.foreach(@path + @filename) do |line|
+				print count.to_s + ". "
+				count += 1
+				puts line
+			end
+			#puts File.read(@path + @filename)
+		else
+			puts "No tasks."
+		end
 	end
 
 	def exit
 		abort	
 	end
 
-	def update #for now, single line, overwrites previous
+	def update #for now, single line; overwrites previous listing
 		new_user = User.new
 		open(@userconfig, "w") do |file|
 			file.puts(new_user.grab_username)
@@ -107,7 +129,8 @@ class UserInterface
 		while @request != "exit"
 			puts
 			puts "What would you like to do? Options are:"
-			puts "1. 'list,' 'add,' or 'remove' a task"
+			puts "1. 'list' your tasks"
+			puts "2. 'add' or 'remove' a task"
 			puts "2. 'update' user info"
 			puts "3. 'exit' program."
 
