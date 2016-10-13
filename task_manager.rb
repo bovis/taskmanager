@@ -1,6 +1,12 @@
 #file should first seek input from user to create a task
 #I'm not sure I know how to delete line items yet
 #
+#future concerns:
+# - consider a persistent "add" state, to accept more than one item
+# 	- maybe just an "add" syntax like "add [name] [due] [priority]"
+#	- add could accept arguments
+#		-but would need to change UI to accommodate args
+# 	
 #for ch4, focus on:
 # - use modules for repetitive information
 # 	that can move between classes
@@ -18,7 +24,17 @@
 # - include references from one variable to another, alter them sufficiently
 
 require "date"
-require_relative "stacklike"
+
+class FileTransform
+	def temp_and_replace(fullpath, content)
+		File.open((fullpath + ".tmp"), "w+") do |file|
+			file.puts(content)
+		end
+
+		#rename tmp file to original
+		File.rename((fullpath + ".tmp"), fullpath)
+	end
+end
 
 class User
 	attr_reader :username
@@ -49,56 +65,82 @@ class Task
 end
 
 class ActionList
-	include Stacklike
-
 	attr_reader :tasklist, :userconfig
 	def initialize(filename, userconfig)
 		@path = ENV['HOME']
 		@filename = filename
+		@full_path = @path + @filename
 		@userconfig = userconfig
+		@@items = []
 	end
 
 	def add
 		raise ArgumentError.new("No permission to write to #{@path}.") unless can_write?
 		
 		new_task = Task.new
-		#loop done on suggestion; investigate further implications
-		#makes addition simpler; "a" creates new file when missing
-		File.open((@path + @filename), "a") do |file|
-			file.puts(new_task.create_string)
+		
+		create_file_if_missing(@full_path)
+
+		@@items = []
+		IO.foreach(@full_path) do |line|
+			@@items << line		
 		end
 
-		puts "Added new task, '#{new_task.taskname}'."
+		@@items << new_task.create_string
+		
+		new_transform = FileTransform.new
+		new_transform.temp_and_replace(@full_path, @@items)
+=begin
+		#tmp file
+		File.open((@full_path + ".tmp"), "w+") do |file|
+			file.puts(@@items)
+		end
+
+		#rename tmp file to original
+		File.rename((@full_path + ".tmp"), @full_path)
+=end
 	end
 
 	def remove
-		puts "Future consideration."
-=begin
-		IO.foreach(@path + @filename) do |line|
-			puts "Line is #{line}"
-			add_to_stack(line)
+		puts
+		puts "Number of item to remove:"
+		remove = gets.chomp
+
+		IO.foreach(@full_path) do |line|
+			@@items << line	
 		end
-		remove_from_stack
+		@@items.delete_at((remove.to_i) - 1)
+		
+		new_transform = FileTransform.new
+		new_transform.temp_and_replace(@full_path, @@items)
+=begin	
+		File.open((@full_path + ".tmp"), "w+") do |file|
+			file.puts(@@items)
+		end
+
+		#rename tmp file to original
+		File.rename((@full_path + ".tmp"), @full_path)
 =end
 	end
 
 	def list
-		if File.exist?(@path + @filename)
-			#read should be safe for reading single line
-			puts "User: "
-			puts File.read(@userconfig)
+		if File.exist?(@full_path)
+			puts
+			print "User: "
+			IO.foreach(@userconfig) do |line|
+				puts line
+			end
 			puts()
 			#foreach better for larger files
-			#overkill for testing here, but good practice
-			#	to learn
+			#wont load whole file into memory at once
+			#overkill here, but good to learn
 			count = 1
 			puts "Your tasks are:"
-			IO.foreach(@path + @filename) do |line|
+			IO.foreach(@full_path) do |line|
 				print count.to_s + ". "
 				count += 1
 				puts line
 			end
-			#puts File.read(@path + @filename)
 		else
 			puts "No tasks."
 		end
@@ -109,11 +151,24 @@ class ActionList
 	end
 
 	def update #for now, single line; overwrites previous listing
-		new_user = User.new
-		open(@userconfig, "w") do |file|
-			file.puts(new_user.grab_username)
+		IO.foreach(@userconfig) do |line|
+			puts "Current username is: #{line}"
 		end
+
+		new_user = User.new
+		new_user.grab_username
+
+		new_transform = FileTransform.new
+		new_transform.temp_and_replace(@userconfig, new_user.username)
+=begin		
+		File.open((@userconfig + ".tmp"), "w+") do |file|
+			file.puts(new_user.username)
+		end
+		
+		File.rename((@userconfig + ".tmp"), @userconfig)
+
 		puts "Added '#{new_user.username}' to user config in: #{@userconfig}."
+=end
 	end
 	
 	private
@@ -121,19 +176,34 @@ class ActionList
 	def can_write?
 		File.stat(@path).writable?
 	end
+
+	def create_file_if_missing(path)
+		File.new(path, "w+") if File.exist?(path) == false
+	end
+
 end
 
 class UserInterface
-	def run
-		@request = ""
-		while @request != "exit"
-			puts
-			puts "What would you like to do? Options are:"
-			puts "1. 'list' your tasks"
-			puts "2. 'add' or 'remove' a task"
-			puts "2. 'update' user info"
-			puts "3. 'exit' program."
+	def introduce
+		puts "WELCOME TO TASK MANAGER."
+	end
 
+	def list_options
+		puts
+		puts "Options are:"
+		puts "> 'list' your tasks"
+		puts "> 'add' a task"
+		puts "> 'remove' the last entered task"
+		puts "> 'update' user info"
+		puts "> 'exit' program."
+		puts  "-------------- "
+		print "Choose a task: "
+	end
+
+	def process_option 
+		@request = ""
+
+		while @request
 			@request = gets.downcase.chomp
 			new_action = ActionList.new("/tasklist", "./userconfig")
 
@@ -143,9 +213,14 @@ class UserInterface
 				puts
 				puts "ERROR: That action is not available."
 			end
+
+			puts  "-------------- "
+			print "Choose a task: "
 		end
 	end
 end
 
 start = UserInterface.new
-start.run
+start.introduce
+start.list_options
+start.process_option
