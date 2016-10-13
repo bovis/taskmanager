@@ -40,8 +40,7 @@ class User
 	attr_reader :username
 
 	def grab_username
-		puts
-		puts "What is your username?"
+		puts("\nWhat is your username?")
 		@username = gets.chomp
 	end
 end
@@ -64,7 +63,7 @@ class Task
 	end
 end
 
-class ActionList
+class TaskActions
 	attr_reader :tasklist, :userconfig
 	def initialize(filename, userconfig)
 		@path = ENV['HOME']
@@ -102,8 +101,7 @@ class ActionList
 	end
 
 	def remove
-		puts
-		puts "Number of item to remove:"
+		puts "\nNumber of item to remove:"
 		remove = gets.chomp
 
 		IO.foreach(@full_path) do |line|
@@ -113,29 +111,21 @@ class ActionList
 		
 		new_transform = FileTransform.new
 		new_transform.temp_and_replace(@full_path, @@items)
-=begin	
-		File.open((@full_path + ".tmp"), "w+") do |file|
-			file.puts(@@items)
-		end
 
-		#rename tmp file to original
-		File.rename((@full_path + ".tmp"), @full_path)
-=end
+		list
 	end
 
 	def list
 		if File.exist?(@full_path)
-			puts
-			print "User: "
+			print "\nUser: "
 			IO.foreach(@userconfig) do |line|
 				puts line
 			end
-			puts()
 			#foreach better for larger files
 			#wont load whole file into memory at once
 			#overkill here, but good to learn
 			count = 1
-			puts "Your tasks are:"
+			puts "\nYour tasks are:"
 			IO.foreach(@full_path) do |line|
 				print count.to_s + ". "
 				count += 1
@@ -160,15 +150,7 @@ class ActionList
 
 		new_transform = FileTransform.new
 		new_transform.temp_and_replace(@userconfig, new_user.username)
-=begin		
-		File.open((@userconfig + ".tmp"), "w+") do |file|
-			file.puts(new_user.username)
-		end
-		
-		File.rename((@userconfig + ".tmp"), @userconfig)
-
 		puts "Added '#{new_user.username}' to user config in: #{@userconfig}."
-=end
 	end
 	
 	private
@@ -189,33 +171,33 @@ class UserInterface
 	end
 
 	def list_options
-		puts
-		puts "Options are:"
-		puts "> 'list' your tasks"
-		puts "> 'add' a task"
-		puts "> 'remove' the last entered task"
-		puts "> 'update' user info"
-		puts "> 'exit' program."
+		puts "\nOptions are:",
+		"> 'list' your tasks",
+		"> 'add' a task",
+		"> 'remove' the last entered task",
+		"> 'update' user info",
+		"> 'exit' program."
 		puts  "-------------- "
 		print "Choose a task: "
 	end
 
+	def print_choose
+		puts  "-------------- "
+		print "Choose a task: "
+	end
+	
 	def process_option 
-		@request = ""
-
-		while @request
+		while true
 			@request = gets.downcase.chomp
-			new_action = ActionList.new("/tasklist", "./userconfig")
+			new_action = TaskActions.new("/tasklist", "./userconfig")
 
 			if new_action.respond_to?(@request)
 					new_action.send(@request)
 			else
-				puts
-				puts "ERROR: That action is not available."
+				puts "\nERROR: That action is not available."
 			end
 
-			puts  "-------------- "
-			print "Choose a task: "
+			print_choose
 		end
 	end
 end
