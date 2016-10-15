@@ -113,19 +113,6 @@ class User
 	def exit
 		abort	
 	end
-
-	def update #for now, single line; overwrites previous listing
-		IO.foreach(@userconfig) do |line|
-			puts "Current username is: #{line}"
-		end
-
-		new_user = User.new
-		new_user.grab_username
-
-		temp_and_replace(@userconfig, new_user.username)
-		
-		puts "Added '#{new_user.username}' to user config in: #{@userconfig}."
-	end
 end
 
 class UserInterface
@@ -134,6 +121,7 @@ class UserInterface
 	def initialize
 		@path = ENV['HOME'] + "/.ruby-taskmanager/"
 		@userlist = @path + "userlist"
+		@items = []
 	end
 
 	def check_configs
@@ -145,7 +133,15 @@ class UserInterface
 
 	def create_user
 		puts "Enter your username: "
-		temp_and_replace(@userlist, gets.chomp)
+		@items = []
+		@items << gets.chomp
+		puts "Items is: #{@items}"
+
+		IO.foreach(@userlist) do |line|
+			@items.unshift(line)
+		end
+
+		temp_and_replace(@userlist, @items)
 	end
 	
 	def introduce
@@ -155,9 +151,9 @@ class UserInterface
 	def list_options
 		puts "\nOptions are:",
 		"> 'list' your tasks",
-		"> 'add' a task",
-		"> 'remove' the last entered task",
-		"> 'update' user info",
+		"> 'add' or 'remove' a task",
+		"> 'create' a new user",
+		"> 'switch' users",
 		"> 'exit' program."
 		puts  "-------------- "
 		print "Choose a task: "
@@ -192,6 +188,8 @@ class UserInterface
 
 			if request == "switch"
 				start_user_session
+			elsif request == "create"
+				create_user
 			elsif @session.respond_to?(request)
 				@session.send(request)
 			else
