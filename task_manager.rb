@@ -1,53 +1,31 @@
-#file should first seek input from user to create a task
-#I'm not sure I know how to delete line items yet
-#
-#future concerns:
-# - consider a persistent "add" state, to accept more than one item
-# 	- maybe just an "add" syntax like "add [name] [due] [priority]"
-#	- add could accept arguments
-#		-but would need to change UI to accommodate args
-# 	
-#for ch4, focus on:
-# - use modules for repetitive information
-# 	that can move between classes
-# - figure out a way to pass a message to a method
-# 	- use method_missing to verify method's existence
-#
-#for ch3, carryovers:
-# - how to include a class method?
-# 	- what would be overarching for tasks?
-# - attr_* for instance variables
-#
-#for ch2, carryovers include:
-# - use object_id built-in method
-# - use required, optional, and default-valued arguments
-# - include references from one variable to another, alter them sufficiently
-
 require "date"
 
-class FileTransform
-	def temp_and_replace(fullpath, content)
-		File.open((fullpath + ".tmp"), "w+") do |file|
+module DirectoryChanging
+	def temp_and_replace(path, content)
+		File.open((path + ".tmp"), "w+") do |file|
 			file.puts(content)
 		end
 
-		#rename tmp file to original
-		File.rename((fullpath + ".tmp"), fullpath)
+		File.rename((path + ".tmp"), path)
 	end
-end
+	
+	def create_dir_if_missing(path)
+		Dir.mkdir(path) if File.exist?(path) == false
+	end
 
-class User
-	attr_reader :username
+	def create_file_if_missing(path)
+		if File.exist?(path) == false
+			File.new(path, "w+") 
+			puts ("Created file: #{path}")
+		end
+	end
 
-	def grab_username
-		puts("\nWhat is your username?")
-		@username = gets.chomp
+	def can_write?(path)
+		raise ArgumentError.new("No permission to write to #{path}.") unless File.stat(path).writable?
 	end
 end
 
 class Task
-	attr_reader :taskname
-
 	def initialize
 		@datetime = DateTime.now.strftime("%Y-%m-%d %H:%M")
 	end
@@ -63,70 +41,66 @@ class Task
 	end
 end
 
-class TaskActions
-	attr_reader :tasklist, :userconfig
-	def initialize(filename, userconfig)
-		@path = ENV['HOME']
-		@filename = filename
-		@full_path = @path + @filename
-		@userconfig = userconfig
-		@@items = []
+##FIND SOMEWHERE FOR THIS
+	def grab_username
+		puts("\nWhat is your username?")
+		@username = gets.chomp
+	end
+##
+
+class User
+	include DirectoryChanging 
+
+	def initialize(user)
+		@@path = ENV['HOME'] + "/.ruby-taskmanager/"
+		@taskfile = @@path + user + ".tasklist"
+		@items = []
+		@user = user
 	end
 
 	def add
-		raise ArgumentError.new("No permission to write to #{@path}.") unless can_write?
-		
+		can_write?(@@path)
+
 		new_task = Task.new
 		
-		create_file_if_missing(@full_path)
+		create_file_if_missing(@taskfile)
 
-		@@items = []
-		IO.foreach(@full_path) do |line|
-			@@items << line		
+		@items = []
+		IO.foreach(@taskfile) do |line|
+			@items << line		
 		end
 
-		@@items << new_task.create_string
+		@items << new_task.create_string
 		
-		new_transform = FileTransform.new
-		new_transform.temp_and_replace(@full_path, @@items)
-=begin
-		#tmp file
-		File.open((@full_path + ".tmp"), "w+") do |file|
-			file.puts(@@items)
-		end
-
-		#rename tmp file to original
-		File.rename((@full_path + ".tmp"), @full_path)
-=end
+		temp_and_replace(@taskfile, @items)
 	end
 
 	def remove
+		self.list
+
+		@items = []
 		puts "\nNumber of item to remove:"
 		remove = gets.chomp
 
-		IO.foreach(@full_path) do |line|
-			@@items << line	
+		IO.foreach(@taskfile) do |line|
+			@items << line
 		end
-		@@items.delete_at((remove.to_i) - 1)
+		@items.delete_at((remove.to_i) - 1)
 		
-		new_transform = FileTransform.new
-		new_transform.temp_and_replace(@full_path, @@items)
+		temp_and_replace(@taskfile, @items)
 
 		list
 	end
 
 	def list
-		if File.exist?(@full_path)
-			print "\nUser: "
-			IO.foreach(@userconfig) do |line|
-				puts line
-			end
+		if File.exist?(@taskfile)
+			print "\nUser: #{@user}"
 			#foreach better for larger files
 			#wont load whole file into memory at once
 			#overkill here, but good to learn
 			count = 1
 			puts "\nYour tasks are:"
-			IO.foreach(@full_path) do |line|
+			IO.foreach(@taskfile) do |line|
 				print count.to_s + ". "
 				count += 1
 				puts line
@@ -148,24 +122,32 @@ class TaskActions
 		new_user = User.new
 		new_user.grab_username
 
-		new_transform = FileTransform.new
-		new_transform.temp_and_replace(@userconfig, new_user.username)
+		temp_and_replace(@userconfig, new_user.username)
+		
 		puts "Added '#{new_user.username}' to user config in: #{@userconfig}."
 	end
-	
-	private
-
-	def can_write?
-		File.stat(@path).writable?
-	end
-
-	def create_file_if_missing(path)
-		File.new(path, "w+") if File.exist?(path) == false
-	end
-
 end
 
 class UserInterface
+	include DirectoryChanging 
+
+	def initialize
+		@path = ENV['HOME'] + "/.ruby-taskmanager/"
+		@userlist = @path + "userlist"
+	end
+
+	def check_configs
+		#check config directory
+		create_dir_if_missing(@path)
+		#check if users
+		create_user if File.size?(@userlist) == nil
+	end
+
+	def create_user
+		puts "Enter your username: "
+		temp_and_replace(@userlist, gets.chomp)
+	end
+	
 	def introduce
 		puts "WELCOME TO TASK MANAGER."
 	end
@@ -181,28 +163,49 @@ class UserInterface
 		print "Choose a task: "
 	end
 
-	def print_choose
+	def command
 		puts  "-------------- "
 		print "Choose a task: "
 	end
 	
+	def list_users
+		create_file_if_missing(@userlist)
+
+		c = 1
+
+		IO.foreach(@userlist) do |line|
+			puts c.to_s + ". " + line
+			c += 1
+		end
+	end
+
+	def start_user_session 
+		puts "\nSelect user (type name): "
+		list_users
+		@session = User.new(gets.chomp)
+	end
+	
 	def process_option 
 		while true
-			@request = gets.downcase.chomp
-			new_action = TaskActions.new("/tasklist", "./userconfig")
+			request = gets.downcase.chomp
+			#new_action = User.new(choose_user)
 
-			if new_action.respond_to?(@request)
-					new_action.send(@request)
+			if request == "switch"
+				start_user_session
+			elsif @session.respond_to?(request)
+				@session.send(request)
 			else
 				puts "\nERROR: That action is not available."
 			end
 
-			print_choose
+			command
 		end
 	end
 end
 
 start = UserInterface.new
 start.introduce
+start.check_configs
+start.start_user_session
 start.list_options
 start.process_option
