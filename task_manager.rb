@@ -1,6 +1,6 @@
 require "date"
 
-module DirectoryChanging
+module Validation
 	def temp_and_replace(path, content)
 		File.open((path + ".tmp"), "w+") do |file|
 			file.puts(content)
@@ -14,14 +14,55 @@ module DirectoryChanging
 	end
 
 	def create_file_if_missing(path)
-		if File.exist?(path) == false
-			File.new(path, "w+") 
-			puts ("Created file: #{path}")
+		File.new(path, "w+") if File.exist?(path) == false
+	end
+
+	def can_write?(path, error)
+		raise ArgumentError.new(error) unless File.stat(path).writable?
+	end
+end
+
+module List
+	def list_lines(file, numbered=true)
+		c = 1
+
+		IO.foreach(file) do |line|
+			if numbered
+				puts c.to_s + ". " + line
+				c += 1
+			else
+				puts line
+			end
 		end
 	end
 
-	def can_write?(path)
-		raise ArgumentError.new("No permission to write to #{path}.") unless File.stat(path).writable?
+	def list_include?(file, item)
+		array = []
+		IO.foreach(file) do |line|
+			array << line.chomp
+		end
+
+		array.include?(item)
+	end
+end
+
+module Prompts
+	def introduce
+		puts "WELCOME TO TASK MANAGER."
+	end
+
+	def list_options
+		puts "\nOptions are:",
+		"> 'list' your tasks",
+		"> 'add' or 'remove' a task",
+		"> 'create' a new user",
+		"> 'switch' users",
+		"> 'exit' program."
+	end
+
+	def command
+		puts  "-------------- "
+		print "Choose a task: "
 	end
 end
 
@@ -41,30 +82,21 @@ class Task
 	end
 end
 
-##FIND SOMEWHERE FOR THIS
-	def grab_username
-		puts("\nWhat is your username?")
-		@username = gets.chomp
-	end
-##
-
 class User
-	include DirectoryChanging 
+	include Validation 
 
 	def initialize(user)
-		@@path = ENV['HOME'] + "/.ruby-taskmanager/"
-		@taskfile = @@path + user + ".tasklist"
+		@path = ENV['HOME'] + "/.ruby-taskmanager/"
+		@taskfile = @path + user + ".tasklist"
 		@items = []
 		@user = user
 	end
 
 	def add
-		can_write?(@@path)
+		can_write?(@path, "No permission to write to #{@path}")
 
 		new_task = Task.new
 		
-		create_file_if_missing(@taskfile)
-
 		@items = []
 		IO.foreach(@taskfile) do |line|
 			@items << line		
@@ -92,21 +124,22 @@ class User
 		list
 	end
 
+	def color(foreground, background, text)
+		"\e[#{foreground}m\e[#{background}m" + text + "\e[0m"
+	end
+
 	def list
-		if File.exist?(@taskfile)
-			print "\nUser: #{@user}"
-			#foreach better for larger files
-			#wont load whole file into memory at once
-			#overkill here, but good to learn
-			count = 1
-			puts "\nYour tasks are:"
-			IO.foreach(@taskfile) do |line|
-				print count.to_s + ". "
-				count += 1
-				puts line
+		print "\nUser: #{@user}"
+		count = 1
+		@items = []
+		puts "\nYour tasks are:"
+		IO.foreach(@taskfile) do |line|
+			if count.odd?
+				puts (color(32, 40, count.to_s + ". ") + color(32, 40, line))
+			else
+				puts (count.to_s + ". " + line)
 			end
-		else
-			puts "No tasks."
+			count += 1
 		end
 	end
 
@@ -115,70 +148,48 @@ class User
 	end
 end
 
-class UserInterface
-	include DirectoryChanging 
+class Shell
+	include Validation
+	include Prompts
+	include List
 
 	def initialize
 		@path = ENV['HOME'] + "/.ruby-taskmanager/"
 		@userlist = @path + "userlist"
 		@items = []
 	end
-
+	
 	def check_configs
 		#check config directory
 		create_dir_if_missing(@path)
-		#check if users
+		#check if userlist file missing, create if empty
+		create_file_if_missing(@userlist)
 		create_user if File.size?(@userlist) == nil
 	end
 
 	def create_user
 		puts "Enter your username: "
+		user = gets.chomp
 		@items = []
-		@items << gets.chomp
-		puts "Items is: #{@items}"
+		@items << user
 
 		IO.foreach(@userlist) do |line|
 			@items.unshift(line)
 		end
 
 		temp_and_replace(@userlist, @items)
-	end
-	
-	def introduce
-		puts "WELCOME TO TASK MANAGER."
-	end
-
-	def list_options
-		puts "\nOptions are:",
-		"> 'list' your tasks",
-		"> 'add' or 'remove' a task",
-		"> 'create' a new user",
-		"> 'switch' users",
-		"> 'exit' program."
-		puts  "-------------- "
-		print "Choose a task: "
-	end
-
-	def command
-		puts  "-------------- "
-		print "Choose a task: "
-	end
-	
-	def list_users
-		create_file_if_missing(@userlist)
-
-		c = 1
-
-		IO.foreach(@userlist) do |line|
-			puts c.to_s + ". " + line
-			c += 1
-		end
+		create_file_if_missing(@path + user + ".tasklist")
 	end
 
 	def start_user_session 
 		puts "\nSelect user (type name): "
-		list_users
-		@session = User.new(gets.chomp)
+		list_lines(@userlist)
+		user = gets.chomp
+		if list_include?(@userlist, user)
+			@session = User.new(user)
+		else
+			start_user_session
+		end
 	end
 	
 	def process_option 
@@ -186,6 +197,7 @@ class UserInterface
 			request = gets.downcase.chomp
 			#new_action = User.new(choose_user)
 
+			#break apart this if series into objects
 			if request == "switch"
 				start_user_session
 			elsif request == "create"
@@ -201,7 +213,7 @@ class UserInterface
 	end
 end
 
-start = UserInterface.new
+start = Shell.new
 start.introduce
 start.check_configs
 start.start_user_session
