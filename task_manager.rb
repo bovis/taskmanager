@@ -1,4 +1,5 @@
 require "date"
+require "curses"
 
 module Validation
 	def temp_and_replace(path, content)
@@ -51,18 +52,35 @@ module Prompts
 		puts "WELCOME TO TASK MANAGER."
 	end
 
-	def list_options
-		puts "\nOptions are:",
-		"> 'list' your tasks",
-		"> 'add' or 'remove' a task",
-		"> 'create' a new user",
-		"> 'switch' users",
-		"> 'exit' program."
+	def list_shell_options
+		puts "\nShell options are:",
+		"> 'select' user",
+		"> 'create' user",
+		"> 'exit' program"
 	end
 
+	def list_user_options
+		puts "\nUser options are:",
+		"> 'list' your tasks",
+		"> 'add' or 'remove' a task",
+		"> 'drop' to shell, to change user"
+	end
+	
 	def command
 		puts  "-------------- "
 		print "Choose a task: "
+	end
+
+	def header
+		header = "Name\tDue Date\tDate Created\tGroup\tAge"
+		puts header
+		puts "+"*header.length
+	end
+end
+
+module Color
+	def color(foreground, background, text)
+		"\e[#{foreground};#{background}m" + text + "\e[K\e[0m"
 	end
 end
 
@@ -83,18 +101,26 @@ class Task
 end
 
 class User
-	include Validation 
+	include Validation
+	include Prompts
+	include Color
 
 	def initialize(user)
 		@path = ENV['HOME'] + "/.ruby-taskmanager/"
 		@taskfile = @path + user + ".tasklist"
 		@items = []
 		@user = user
+		@actions_allowed = ["add", "remove", "list", "exit"] 
+	end
+
+	def self.present_shell
+		while true
+			puts "#{user}> "
+			self.send(gets.chomp) if @actions_allowed.include?(gets.chomp)
+		end
 	end
 
 	def add
-		can_write?(@path, "No permission to write to #{@path}")
-
 		new_task = Task.new
 		
 		@items = []
@@ -124,20 +150,15 @@ class User
 		list
 	end
 
-	def color(foreground, background, text)
-		"\e[#{foreground}m\e[#{background}m" + text + "\e[0m"
-	end
-
 	def list
-		print "\nUser: #{@user}"
+		header
+
 		count = 1
-		@items = []
-		puts "\nYour tasks are:"
 		IO.foreach(@taskfile) do |line|
 			if count.odd?
-				puts (color(32, 40, count.to_s + ". ") + color(32, 40, line))
+				puts color(32, 40, "#{count}. #{line.strip}")
 			else
-				puts (count.to_s + ". " + line)
+				puts "#{count}. #{line.strip}"
 			end
 			count += 1
 		end
@@ -160,6 +181,7 @@ class Shell
 	end
 	
 	def check_configs
+		can_write?(@path, "No permission to write to #{@path}")
 		#check config directory
 		create_dir_if_missing(@path)
 		#check if userlist file missing, create if empty
@@ -192,6 +214,13 @@ class Shell
 		end
 	end
 	
+	def self.shell
+		while true
+			puts "shell> "
+			self.send(gets.chomp) if @actions_allowed.include?(gets.chomp)
+
+	end
+
 	def process_option 
 		while true
 			request = gets.downcase.chomp
@@ -216,6 +245,5 @@ end
 start = Shell.new
 start.introduce
 start.check_configs
-start.start_user_session
-start.list_options
+start.list_shell_options
 start.process_option
