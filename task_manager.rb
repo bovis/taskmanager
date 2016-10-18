@@ -56,6 +56,7 @@ module Prompts
 		puts "\nShell options are:",
 		"> 'select' user",
 		"> 'create' user",
+		"> 'help' to show this menu",
 		"> 'exit' program"
 	end
 
@@ -110,13 +111,14 @@ class User
 		@taskfile = @path + user + ".tasklist"
 		@items = []
 		@user = user
-		@actions_allowed = ["add", "remove", "list", "exit"] 
+		@actions_allowed = ["add", "remove", "list", "help", "drop"] 
 	end
 
-	def self.present_shell
+	def shell
 		while true
-			puts "#{user}> "
-			self.send(gets.chomp) if @actions_allowed.include?(gets.chomp)
+			print "#{@user}> "
+			request = gets.chomp
+			self.send(request) if @actions_allowed.include?(request)
 		end
 	end
 
@@ -164,8 +166,13 @@ class User
 		end
 	end
 
-	def exit
-		abort	
+	def help
+		list_user_options
+	end
+
+	def drop
+		new = Shell.new
+		new.shell
 	end
 end
 
@@ -178,6 +185,7 @@ class Shell
 		@path = ENV['HOME'] + "/.ruby-taskmanager/"
 		@userlist = @path + "userlist"
 		@items = []
+		@actions_allowed = ["select", "create", "help", "exit"]
 	end
 	
 	def check_configs
@@ -189,7 +197,7 @@ class Shell
 		create_user if File.size?(@userlist) == nil
 	end
 
-	def create_user
+	def create
 		puts "Enter your username: "
 		user = gets.chomp
 		@items = []
@@ -203,21 +211,32 @@ class Shell
 		create_file_if_missing(@path + user + ".tasklist")
 	end
 
-	def start_user_session 
+	def select 
 		puts "\nSelect user (type name): "
 		list_lines(@userlist)
 		user = gets.chomp
 		if list_include?(@userlist, user)
 			@session = User.new(user)
+			@session.shell
 		else
-			start_user_session
+			select
 		end
 	end
+
+	def help
+		list_shell_options
+	end
+
+	def exit
+		abort
+	end
 	
-	def self.shell
+	def shell
 		while true
-			puts "shell> "
-			self.send(gets.chomp) if @actions_allowed.include?(gets.chomp)
+			print "shell> "
+			request = gets.chomp
+			self.send(request) if @actions_allowed.include?(request)
+		end
 
 	end
 
@@ -245,5 +264,5 @@ end
 start = Shell.new
 start.introduce
 start.check_configs
-start.list_shell_options
-start.process_option
+start.shell
+#start.process_option
