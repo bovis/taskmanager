@@ -237,27 +237,6 @@ class Shell
 			request = gets.chomp
 			self.send(request) if @actions_allowed.include?(request)
 		end
-
-	end
-
-	def process_option 
-		while true
-			request = gets.downcase.chomp
-			#new_action = User.new(choose_user)
-
-			#break apart this if series into objects
-			if request == "switch"
-				start_user_session
-			elsif request == "create"
-				create_user
-			elsif @session.respond_to?(request)
-				@session.send(request)
-			else
-				puts "\nERROR: That action is not available."
-			end
-
-			command
-		end
 	end
 end
 
