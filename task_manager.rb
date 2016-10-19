@@ -1,5 +1,4 @@
 require "date"
-require "curses"
 
 module Validation
 	def temp_and_replace(path, content)
@@ -111,7 +110,7 @@ class User
 		@taskfile = @path + user + ".tasklist"
 		@items = []
 		@user = user
-		@actions_allowed = ["add", "remove", "list", "help", "drop"] 
+		@actions_allowed = ["add", "remove", "list", "help", "drop", "exit"] 
 	end
 
 	def shell
@@ -174,6 +173,10 @@ class User
 		new = Shell.new
 		new.shell
 	end
+
+	def exit
+		abort
+	end
 end
 
 class Shell
@@ -216,8 +219,8 @@ class Shell
 		list_lines(@userlist)
 		user = gets.chomp
 		if list_include?(@userlist, user)
-			@session = User.new(user)
-			@session.shell
+			session = User.new(user)
+			session.shell
 		else
 			select
 		end
@@ -244,4 +247,3 @@ start = Shell.new
 start.introduce
 start.check_configs
 start.shell
-#start.process_option
