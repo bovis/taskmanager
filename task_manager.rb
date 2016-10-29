@@ -59,51 +59,79 @@ module Column
 	#date created gets 11, hard
 	#date due gets 11, hard
 	#group gets 20, arbitrary
-	#age gets 10, hard, xxDxxMxxY
+	#age gets 10, hard, xxMxxDxxxxY
 	COLUMNS = [25, 11, 11, 20, 10]
 
 	def wrap(array, count=1)
 		cols = `tput cols`.to_i
+		if cols < COLUMNS.map(&:to_i).reduce(0, :+)
+			array[0] = "" if array[0] == nil	#protect blank user inputs in CSV
+			puts color_wrapped_line(array[0], count)
+			return
+		end
+
+		while array.join.length > 0
+			#wraps and prints lines to screen
+			line = wrap_single_line(array, count)
+
+			if line.length > 0
+				puts color_wrapped_line(line, count)
+				line = "|"
+			end
+		end
+	end
+	
+	def wrap_single_line(array, count)
+		line = "|"
+		c = 0
+
+		#iterate through elements to normalize them to columns
+		array.each do |idx|
+			idx = "" if idx == nil	#protect blank user inputs in CSV
+			
+			#normalize index to column size, add norm. value to string
+			line = normalize(line, idx, COLUMNS[c])
+			
+			#any remainder after norm. replaces current index
+			array[c] = find_remainder(idx, COLUMNS[c])
+			
+			c += 1
+		end
+
+		line
+	end
+
+	def normalize(string, content, cols)
+		#if current array value >= columns allowed, add single space
+		#else add blanks to normalize columns 
+		if content.length >= cols 
+			string << "#{content[0...cols]} |"
+		else
+			string << "#{content.ljust(cols)} |"
+		end
 		
+		string
+	end
+
+	def find_remainder(content, cols)
+		array = []
+		remainder = content.length - cols
+		if remainder > 0 
+			array = content.split(//).last(remainder).join("")
+		else
+			array = ""
+		end
+	end
+
 		#feature: print only name field if
 		#cols is less than than COLUMNS
-		#	need to break up this method
-
-		string = "| "
-		
-		while array.join.length > 0
-			c = 0
-
-			array.each do |idx|
-				#protect against blank user inputs
-				idx = "" if idx == nil
-				
-				#if current array value >= max value, add single space
-				#else add blanks to normalize columns 
-				if idx.length >= COLUMNS[c]
-					string << "#{idx[0...(COLUMNS[c])]} |"
-				else
-					blanks = (COLUMNS[c] - idx.length)
-					string << "#{idx.ljust(COLUMNS[c])} |"
-				end
-				
-				remainder = idx.length - COLUMNS[c]
-				if remainder > 0 
-					array[c] = idx.split(//).last(remainder).join("")
-				else
-					array[c] = ""
-				end
-				c += 1
-			end
-			
-			if string.length > 0
-				if count.even?
-					puts color(32, 40, "#{string.strip}")
-				else
-					puts string
-				end
-			string = "| "
-			end
+		#	need to break up this module
+	
+	def color_wrapped_line(line, count)
+		if count.even?
+			color(32, 40, "#{line.strip}")
+		else
+			line
 		end
 	end
 end
@@ -234,7 +262,8 @@ class User
 		header = ["Name", "Due", "Created", "Group"]
 		wrap(header)
 		cols_each = [25, 11, 11, 20, 10]
-		puts "-"*(cols_each.reduce {|sum, x| sum + x + 1})
+		puts "-"*(`tput cols`.to_i)
+		#puts "-"*(cols_each.reduce {|sum, x| sum + x + 1})
 	end
 
 	def calculate_age(past_date)
