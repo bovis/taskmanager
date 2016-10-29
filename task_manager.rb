@@ -64,7 +64,7 @@ module Column
 
 	def wrap(array, count=1)
 		cols = `tput cols`.to_i
-		if cols < COLUMNS.map(&:to_i).reduce(0, :+)
+		if cols < COLUMNS.map().reduce(0, :+)
 			array[0] = "" if array[0] == nil	#protect blank user inputs in CSV
 			puts color_wrapped_line(array[0], count)
 			return
