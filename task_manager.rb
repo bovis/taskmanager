@@ -55,33 +55,36 @@ module Color
 end
 
 module Column
-	#name gets 25 cols, arbitrary
-	#date created gets 11, hard
-	#date due gets 11, hard
-	#group gets 20, arbitrary
-	#age gets 10, hard, xxMxxDxxxxY
 	COLUMNS = [25, 11, 11, 20, 10]
 
-	def wrap(array, count=1)
+  def wrap(array, count=1)
 		cols = `tput cols`.to_i
+    
+    #wrap only first (Name) column if screen too thin for all cols
 		if cols < COLUMNS.map().reduce(0, :+)
-			array[0] = "" if array[0] == nil	#protect blank user inputs in CSV
-			puts color_wrapped_line(array[0], count)
-			return
-		end
+      wrap_name(array, count)
+    else
+      wrap_all(array, count)
+    end
+  end
 
+  def wrap_name(array, count)
+    array[0] = "" if array[0] == nil	#protect blank inputs in CSV
+    color_line(array[0], count)
+  end
+
+  def wrap_all(array, count)
 		while array.join.length > 0
 			#wraps and prints lines to screen
-			line = wrap_single_line(array, count)
+			line = wrap_single_line(array)
 
 			if line.length > 0
-				puts color_wrapped_line(line, count)
-				line = "|"
+				return color_line(line, count)
 			end
 		end
-	end
-	
-	def wrap_single_line(array, count)
+  end
+
+	def wrap_single_line(array)
 		line = "|"
 		c = 0
 
@@ -123,11 +126,7 @@ module Column
 		end
 	end
 
-		#feature: print only name field if
-		#cols is less than than COLUMNS
-		#	need to break up this module
-	
-	def color_wrapped_line(line, count)
+	def color_line(line, count)
 		if count.even?
 			color(32, 40, "#{line.strip}")
 		else
@@ -140,20 +139,36 @@ class Task
 	def initialize
 		@datetime = DateTime.now.strftime("%Y-%m-%d")
 	end
+
+  def find_number
+    items = []
+    numbers = []
+    CSV.foreach(@taskfile) do |row|
+      items << row.join(",")
+      numbers << items[0]
+    end
+
+    count = 0
+
+    numbers.each do |item|
+      if count > 0
+        return item if item == count + 2
+      end
+      count += 1
+    end
+    return numbers.max + 1
+  end
 	
 	def collect_task_values
-		puts
-		"#{prompt_taskname},#{prompt_date},#{@datetime},#{prompt_group}"
+		"#{prompt_for_taskname},#{prompt_for_date},#{@datetime},#{prompt_for_group}"
 	end
 
-	def prompt_taskname
+	def prompt_for_taskname
 		puts "Enter the new task name:"
 		gets.chomp
-		#answer = gets.chomp
-		#answer == "" ? " " : answer
 	end
 
-	def prompt_date
+	def prompt_for_date
 		puts "Due date (can be blank):"
 		begin
 			due = gets.chomp
@@ -163,14 +178,11 @@ class Task
 			retry
 		end
 		return due
-		#due == "" ? " " : due 
 	end
 	
-	def prompt_group
+	def prompt_for_group
 		puts "Group (can be blank)"
 		gets.chomp
-		#answer = gets.chomp
-		#answer == "" ? " " : answer
 	end
 
 end
@@ -231,7 +243,7 @@ class User
 		count = 0
 
 		CSV.foreach(@taskfile) do |row|
-			wrap(row, count)
+			puts(wrap(row, count))
 			count += 1
 		end
 	end
@@ -260,7 +272,7 @@ class User
 	
 	def header
 		header = ["Name", "Due", "Created", "Group"]
-		wrap(header)
+		puts(wrap(header))
 		cols_each = [25, 11, 11, 20, 10]
 		puts "-"*(`tput cols`.to_i)
 		#puts "-"*(cols_each.reduce {|sum, x| sum + x + 1})
