@@ -1,10 +1,19 @@
 require "date"
 require "csv"
+require "yaml"
 
 module Validation
 	def temp_and_replace(path, content)
 		File.open((path + ".tmp"), "w+") do |file|
 			file.puts(content)
+		end
+
+		File.rename((path + ".tmp"), path)
+	end
+	
+  def temp_and_replace_yaml(path, content)
+		File.open((path + ".tmp"), "w+") do |file|
+      file.write(content.to_yaml)
 		end
 
 		File.rename((path + ".tmp"), path)
@@ -136,8 +145,9 @@ module Column
 end
 
 class Task
-	def initialize
+	def initialize(taskfile)
 		@datetime = DateTime.now.strftime("%Y-%m-%d")
+    @taskfile = taskfile
 	end
 
   def find_number
@@ -160,8 +170,33 @@ class Task
   end
 	
 	def collect_task_values
-		"#{prompt_for_taskname},#{prompt_for_date},#{@datetime},#{prompt_for_group}"
+    {find_number => {:taskname => prompt_for_taskname,
+     :datedue => prompt_for_date,
+     :dateentered => "#{@datetime}",
+     :group => prompt_for_group
+    }
+    }
 	end
+
+  def find_number
+    num = 1   #start task count at 1
+
+    nums_seen = []
+    items = YAML.load(File.open(@taskfile))
+    items.each do |idx|
+      idx.each do |k,v|
+        nums_seen << k
+      end
+    end
+
+    (0..nums_seen.max).each do |x|
+      if nums_seen.include?(x) == false
+        return x
+      else
+        return (nums_seen.max + 1)
+      end
+    end
+  end
 
 	def prompt_for_taskname
 		puts "Enter the new task name:"
@@ -208,16 +243,14 @@ class User
 	end
 
 	def add
-		new_task = Task.new
-		
-		items = []
-		CSV.foreach(@taskfile) do |row|
-			items << row.join(",")
-		end
+		new_task = Task.new(@taskfile)
 
-		items << new_task.collect_task_values
+    items = []
 		
-		temp_and_replace(@taskfile, items)
+		items = YAML.load(File.open(@taskfile))
+    items << new_task.collect_task_values
+		
+		temp_and_replace_yaml(@taskfile, items)
 	end
 
 	def remove
