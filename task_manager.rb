@@ -86,21 +86,18 @@ module Column
     end
 
 #    array[0] = "" if array[0] == nil	#protect blank inputs in CSV
- #   color_line(array[0], count)
   end
   
   def wrap_all(array)
+    count = 0
+
     array.each do |idx|
       idx.each do |k, v|
         line = create_task_array(v)
-        wrap_and_print(line, k)  #will normalize for printing
+        wrap_and_print(line, k, count)  #will normalize for printing
+        count += 1
       end
     end
-
-
-    #if line.length > 0
-     # return color_line(line, count)
-    #end
   end
 
 	def create_task_array(hash)
@@ -115,21 +112,9 @@ module Column
     return line
   end
 
-=begin
-    #normalize index to column size, add norm. value to string
-    line = normalize(wrapper.to_s, idx, COLUMNS[c])
-    
-    #any remainder after norm. replaces current index
-    array[c] = find_remainder(idx, COLUMNS[c])
-    
-    c += 1
-
-		line
-=end
-
-  def wrap_and_print(array, task_number)
+  def wrap_and_print(array, task_number, count)
     c = 0
-    string = sprintf("%.3d |", task_number)
+    string = sprintf("|%.3d |", task_number)
 
     while array.join("").length > 0
       while c < COLUMNS.length - 1
@@ -140,8 +125,8 @@ module Column
       end
       
       c = 0
-      puts color_line(string, task_number)
-      string = "    |"
+      puts color_line(string, count)
+      string = "|    |"
     end
   end
 
@@ -270,18 +255,22 @@ class User
 	end
 
 	def remove
-		self.list
-
-		items = []
-		puts "\nNumber of item to remove:"
-		remove = gets.chomp
-
-		IO.foreach(@taskfile) do |line|
-			items << line
-		end
-		items.delete_at((remove.to_i) - 1)
+    items = YAML.load(File.open(@taskfile))
+    return (puts "No items.") if items == false
 		
-		temp_and_replace(@taskfile, items)
+    self.list
+
+		puts "\nNumber of item to remove:"
+    selected_num = gets.chomp.to_i
+    hash_to_delete = {}
+
+    items.each do |idx|
+      idx.each {|k,v| hash_to_delete = {k => v} if k == selected_num}
+    end
+
+		items.delete(hash_to_delete)
+		
+		temp_and_replace_yaml(@taskfile, items)
 
     self.list
 	end
@@ -292,13 +281,6 @@ class User
 		count = 0
 
     wrap(YAML.load(File.open(@taskfile)), count)
-
-=begin
-		CSV.foreach(@taskfile) do |row|
-			puts(wrap(row, count))
-			count += 1
-		end
-=end
 	end
 
 	def help
@@ -324,8 +306,8 @@ class User
 	end
 	
 	def header
-		header = ["Name", "Due", "Created", "Group"]
-		puts(wrap(header))
+		head = ["Name", "Due", "Created", "Group"]
+		wrap_and_print()
 		cols_each = [25, 11, 11, 20, 10]
 		puts "-"*(`tput cols`.to_i)
 		#puts "-"*(cols_each.reduce {|sum, x| sum + x + 1})
