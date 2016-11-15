@@ -66,73 +66,106 @@ end
 module Column
 	COLUMNS = [25, 11, 11, 20, 10]
 
-  def wrap(array, count=1)
+  def wrap(file, count=1)
 		cols = `tput cols`.to_i
     
     #wrap only first (Name) column if screen too thin for all cols
 		if cols < COLUMNS.map().reduce(0, :+)
-      wrap_name(array, count)
+      wrap_name(file, count)
     else
-      wrap_all(array, count)
+      wrap_all(file)
     end
   end
 
-  def wrap_name(array, count)
-    array[0] = "" if array[0] == nil	#protect blank inputs in CSV
-    color_line(array[0], count)
+  def wrap_name(yaml_file, count)
+    array.each do |idx|   #file loaded as array of hashes
+      idx.each do |k, v|
+        puts color_line(v[:taskname], count)
+        count += 1
+      end
+    end
+
+#    array[0] = "" if array[0] == nil	#protect blank inputs in CSV
+ #   color_line(array[0], count)
+  end
+  
+  def wrap_all(array)
+    array.each do |idx|
+      idx.each do |k, v|
+        line = create_task_array(v)
+        wrap_and_print(line, k)  #will normalize for printing
+      end
+    end
+
+
+    #if line.length > 0
+     # return color_line(line, count)
+    #end
   end
 
-  def wrap_all(array, count)
-		while array.join.length > 0
-			#wraps and prints lines to screen
-			line = wrap_single_line(array)
-
-			if line.length > 0
-				return color_line(line, count)
-			end
-		end
-  end
-
-	def wrap_single_line(array)
-		line = "|"
+	def create_task_array(hash)
 		c = 0
+    
+    #create line to normalize and print
+		line = []
+    hash.each do |k, v|
+      line << v
+    end
 
-		#iterate through elements to normalize them to columns
-		array.each do |idx|
-			idx = "" if idx == nil	#protect blank user inputs in CSV
-			
-			#normalize index to column size, add norm. value to string
-			line = normalize(line, idx, COLUMNS[c])
-			
-			#any remainder after norm. replaces current index
-			array[c] = find_remainder(idx, COLUMNS[c])
-			
-			c += 1
-		end
+    return line
+  end
+
+=begin
+    #normalize index to column size, add norm. value to string
+    line = normalize(wrapper.to_s, idx, COLUMNS[c])
+    
+    #any remainder after norm. replaces current index
+    array[c] = find_remainder(idx, COLUMNS[c])
+    
+    c += 1
 
 		line
-	end
+=end
 
-	def normalize(string, content, cols)
+  def wrap_and_print(array, task_number)
+    c = 0
+    string = sprintf("%.3d |", task_number)
+
+    while array.join("").length > 0
+      while c < COLUMNS.length - 1
+        string << normalize(array[c], COLUMNS[c])
+        
+        array[c] = find_remainder(array[c], COLUMNS[c])
+        c += 1
+      end
+      
+      c = 0
+      puts color_line(string, task_number)
+      string = "    |"
+    end
+  end
+
+	def normalize(string, indiv_col_width)
 		#if current array value >= columns allowed, add single space
-		#else add blanks to normalize columns 
-		if content.length >= cols 
-			string << "#{content[0...cols]} |"
+		#else add blanks to normalize columns
+		if string.length >= indiv_col_width 
+			string = "#{string[0...indiv_col_width]} |"
 		else
-			string << "#{content.ljust(cols)} |"
+      string = "#{string.ljust(indiv_col_width)} |"
 		end
 		
 		string
 	end
 
-	def find_remainder(content, cols)
-		array = []
-		remainder = content.length - cols
+	def find_remainder(string, indiv_col_width)
+    remainder = string.length - indiv_col_width 
 		if remainder > 0 
-			array = content.split(//).last(remainder).join("")
+			new_str = string.split(//).last(remainder).join("")
 		else
-			array = ""
+			new_str = ""
 		end
+    #puts "New string is: #{new_str}"
+    return new_str
 	end
 
 	def color_line(line, count)
@@ -150,52 +183,33 @@ class Task
     @taskfile = taskfile
 	end
 
-  def find_number
-    items = []
-    numbers = []
-    CSV.foreach(@taskfile) do |row|
-      items << row.join(",")
-      numbers << items[0]
-    end
-
-    count = 0
-
-    numbers.each do |item|
-      if count > 0
-        return item if item == count + 2
-      end
-      count += 1
-    end
-    return numbers.max + 1
-  end
-	
 	def collect_task_values
     {find_number => {:taskname => prompt_for_taskname,
      :datedue => prompt_for_date,
-     :dateentered => "#{@datetime}",
+     :dateentered => @datetime,
      :group => prompt_for_group
     }
     }
 	end
 
   def find_number
-    num = 1   #start task count at 1
+    items = YAML.load(File.open(@taskfile))
+    return 1 if items == false  #if file is empty
 
     nums_seen = []
-    items = YAML.load(File.open(@taskfile))
     items.each do |idx|
       idx.each do |k,v|
         nums_seen << k
       end
     end
 
-    (0..nums_seen.max).each do |x|
+    (1..nums_seen.max).each do |x|
       if nums_seen.include?(x) == false
         return x
-      else
-        return (nums_seen.max + 1)
       end
     end
+      
+    return (nums_seen.max + 1)
   end
 
 	def prompt_for_taskname
@@ -247,7 +261,9 @@ class User
 
     items = []
 		
-		items = YAML.load(File.open(@taskfile))
+		file = YAML.load(File.open(@taskfile))
+    items = file if file != false
+
     items << new_task.collect_task_values
 		
 		temp_and_replace_yaml(@taskfile, items)
@@ -267,18 +283,22 @@ class User
 		
 		temp_and_replace(@taskfile, items)
 
-		list
+    self.list
 	end
 
 	def list
-		header #print header above user's tasks
+		#header #print header above user's tasks
 
 		count = 0
 
+    wrap(YAML.load(File.open(@taskfile)), count)
+
+=begin
 		CSV.foreach(@taskfile) do |row|
 			puts(wrap(row, count))
 			count += 1
 		end
+=end
 	end
 
 	def help
