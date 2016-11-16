@@ -84,8 +84,6 @@ module Column
         count += 1
       end
     end
-
-#    array[0] = "" if array[0] == nil	#protect blank inputs in CSV
   end
   
   def wrap_all(array)
@@ -112,9 +110,13 @@ module Column
     return line
   end
 
-  def wrap_and_print(array, task_number, count)
+  def wrap_and_print(array, task_number, count=0, print_num=true)
     c = 0
-    string = sprintf("|%.3d |", task_number)
+    if print_num
+      string = sprintf("|%.3d |", task_number)
+    else
+      string = "|    |"
+    end
 
     while array.join("").length > 0
       while c < COLUMNS.length - 1
@@ -276,7 +278,7 @@ class User
 	end
 
 	def list
-		#header #print header above user's tasks
+		header #print header above user's tasks
 
 		count = 0
 
@@ -307,10 +309,9 @@ class User
 	
 	def header
 		head = ["Name", "Due", "Created", "Group"]
-		wrap_and_print()
+    wrap_and_print(head, 0, 1, false)
 		cols_each = [25, 11, 11, 20, 10]
 		puts "-"*(`tput cols`.to_i)
-		#puts "-"*(cols_each.reduce {|sum, x| sum + x + 1})
 	end
 
 	def calculate_age(past_date)
@@ -329,7 +330,7 @@ class Shell
 		@path = ENV['HOME'] + "/.ruby-taskmanager/"
 		@userlist = @path + "userlist"
 		@items = []
-		@actions_allowed = ["select", "create", "help", "exit"]
+		@actions_allowed = ["select", "create", "help", "list", "remove", "exit"]
 	end
 
 	def start
@@ -349,16 +350,46 @@ class Shell
 	def create
 		puts "Enter your username: "
 		user = gets.chomp
-		(@items = []) << user
+		(items = []) << user
 
 		IO.foreach(@userlist) do |line|
-			@items.unshift(line)
+      items.unshift(line.downcase)
 		end
 
-		temp_and_replace(@userlist, @items)
+    return (puts "User already exists.") if items.include?(user)
+
+		temp_and_replace(@userlist, items)
 		create_file_if_missing(@path + user + ".tasklist")
 	end
 
+  def remove
+    self.list
+
+    puts "Remove user (type username):"
+    user = gets.chomp
+
+		items = []
+
+    IO.foreach(@userlist) {|line| items << line.chomp}
+    
+    return (puts "User does not exist.") if items.include?(user) == false
+    
+    remove_user_tasks(user)
+
+    items.delete(user)
+
+		temp_and_replace(@userlist, items)
+		create_file_if_missing(@path + user + ".tasklist")
+  end
+  
+  def list
+    count = 1
+    IO.foreach(@userlist) do |user|
+      puts "#{count}: #{user}"
+      count += 1
+    end
+  end
+  
 	def select 
 		puts "\nSelect user (type name): "
 		list_lines(@userlist)
@@ -397,11 +428,17 @@ class Shell
 
 	def list_shell_options
 		puts "\nShell options are:",
-		"> 'select' user",
-		"> 'create' user",
+		"> 'list or 'select' user(s)",
+		"> 'create' or 'remove' user",
 		"> 'help' to show this menu",
 		"> 'exit' program"
 	end
+
+  def remove_user_tasks(username)
+    file = @path + username + ".tasklist"
+    File.delete(file) if File.exist?(file)
+  end
+
 end
 
 manager = Shell.new.start
